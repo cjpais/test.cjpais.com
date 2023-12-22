@@ -26,12 +26,25 @@ export type ThingData = {
   created: string; // Assuming 'created' is stored in a string format like ISO8601
 };
 
-export const FILE_DIR = "/Volumes/ext/drop";
-const DB_DIR = "/Volumes/ext/drop/db.sqlite";
+const validAuthToken = (req: Request) => {
+  const token: string | undefined = req.headers
+    .get("Authorization")
+    ?.split(" ")[1];
+
+  console.log("auth token", token);
+  console.log("ENVa token", process.env.AUTH_TOKEN);
+  console.log("token", token, token === `${process.env.AUTH_TOKEN}`);
+  if (token === `${process.env.AUTH_TOKEN}`) {
+    return true;
+  } else {
+    return false;
+  }
+};
 
 // Initialize the database and table
 function initDatabase() {
-  const db = new Database(DB_DIR);
+  console.log("db dir", process.env.DB_DIR);
+  const db = new Database(process.env.DB_DIR);
 
   // Create the 'things' table if it does not exist
   db.run(`CREATE TABLE IF NOT EXISTS things (
@@ -100,7 +113,7 @@ const ffmpegPromise = (input: string, output: string, ext: ".mp3" | ".mp4") => {
         console.log("conversion ended", new Date());
         // save file to disk with the filename (hash) and extension
         const fileHash = await hashFile(Bun.file(output));
-        fs.renameSync(output, `${FILE_DIR}/${fileHash}${ext}`);
+        fs.renameSync(output, `${process.env.FILE_DIR}/${fileHash}${ext}`);
         console.log("done saving file", new Date());
 
         resolve(`${fileHash}${ext}`);
@@ -117,7 +130,7 @@ const convert = async (filename: string, ext: ".mp3" | ".mp4") => {
   console.log("converting video", filename, new Date());
   // create uuid for new file
   const uuid = uuidv4();
-  const tempFilename = `${FILE_DIR}/${uuid}${ext}`;
+  const tempFilename = `${process.env.FILE_DIR}/${uuid}${ext}`;
 
   const fileHash = await ffmpegPromise(filename, tempFilename, ext);
 
@@ -137,6 +150,9 @@ const hashExists = (hash: string) => {
 const uploadHandler: RouteHandler = async (request) => {
   if (request.method !== "POST")
     return new Response("Method Not Allowed", { status: 405 });
+
+  if (!validAuthToken(request))
+    return new Response("Unauthorized", { status: 401 });
 
   const formData = await request.formData();
 
@@ -164,14 +180,14 @@ const uploadHandler: RouteHandler = async (request) => {
     // write file to disk as hash
     if (file) {
       console.log("writing to disk", hashedFilename, new Date());
-      await Bun.write(`${FILE_DIR}/${hashedFilename}`, file);
+      await Bun.write(`${process.env.FILE_DIR}/${hashedFilename}`, file);
       console.log("done writing to disk", hashedFilename, new Date());
     }
 
     // if file is a video convert it to mp4 via ffmpeg
     if (mimeType.includes("video") && fileExt.toLowerCase() !== "mp4") {
       newHashedFilename = await convert(
-        `${FILE_DIR}/${hashedFilename}`,
+        `${process.env.FILE_DIR}/${hashedFilename}`,
         ".mp4"
       );
     }
@@ -180,7 +196,7 @@ const uploadHandler: RouteHandler = async (request) => {
     if (mimeType.includes("audio") && fileExt.toLowerCase() !== "mp3") {
       console.log("converting audio", new Date());
       newHashedFilename = await convert(
-        `${FILE_DIR}/${hashedFilename}`,
+        `${process.env.FILE_DIR}/${hashedFilename}`,
         ".mp3"
       );
     }
@@ -229,7 +245,7 @@ const fileHandler: RouteHandler = async (request) => {
   try {
     const url = new URL(request.url);
     const path = decodeURIComponent(url.pathname).split("/").pop();
-    const file = await Bun.file(`${FILE_DIR}/${path}`);
+    const file = await Bun.file(`${process.env.FILE_DIR}/${path}`);
     return new Response(file, { status: 200 });
   } catch (error) {
     console.log(error);
@@ -255,7 +271,7 @@ const permaHandler: RouteHandler = async (request) => {
   try {
     const url = new URL(request.url);
     const path = decodeURIComponent(url.pathname).split("/").pop();
-    const file = await Bun.file(`${FILE_DIR}/${path}`);
+    const file = await Bun.file(`${process.env.FILE_DIR}/${path}`);
 
     console.log(file.type);
 

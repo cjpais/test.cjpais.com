@@ -1,5 +1,5 @@
 import React from "react";
-import { FILE_DIR, ThingData } from "..";
+import { ThingData } from "..";
 import Markdown from "react-markdown";
 import fs from "fs";
 
@@ -26,7 +26,7 @@ const Thing = ({ thing }: { thing: ThingData }) => {
 
 const TextThing = ({ thing }: { thing: ThingData }) => {
   const content = fs
-    .readFileSync(`${FILE_DIR}/${thing.filename}`)
+    .readFileSync(`${process.env.FILE_DIR}/${thing.filename}`)
     .toString("utf-8");
 
   return (
